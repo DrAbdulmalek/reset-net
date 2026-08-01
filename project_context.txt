@@ -1,0 +1,1090 @@
+# سياق المشروع: reset-net
+**المسار:** `/home/runner/work/reset-net/reset-net`
+**تاريخ التوليد:** 2026-08-01T22:01:34.001588
+
+## 📊 إحصائيات المشروع
+- **إجمالي الملفات الممسوحة:** 126
+- **الملفات المضمنة:** 11
+- **إجمالي الحجم:** 40,114 بايت
+
+### اللغات والتقنيات:
+- Other: 8 ملف
+- Markdown: 2 ملف
+- Shell: 1 ملف
+
+## 🌳 شجرة الملفات
+```
+reset-net/
+├── .gitignore
+├── GEMINI_SYSTEM_PROMPT.md
+├── GITHUB_ACTIONS_GUIDE.md
+├── PKGBUILD
+├── com.drabdulmalek.reset-net.desktop
+├── com.drabdulmalek.reset-net.policy
+├── install.sh
+├── reset-net
+├── reset-net-gui
+├── reset-net-tray
+├── reset-net-tray.desktop
+```
+
+## 📁 محتوى الملفات
+
+### `GITHUB_ACTIONS_GUIDE.md`
+**اللغة:** Markdown | **الأسطر:** 85 | **الحجم:** 2,001 حرف
+
+```markdown
+# 🚀 دليل استخدام سياق المشروع من الجوال
+
+## الهدف
+تشغيل سكريبت استخراج السياق أونلاين على GitHub دون الحاجة إلى كمبيوتر.
+
+---
+
+## ⚡ الخطوات (من الجوال)
+
+### 1. إضافة الملفات للمستودع
+
+في مستودعك على GitHub، أنشئ هذين الملفين (يمكنك من التطبيق أو المتصفح):
+
+```
+.github/
+├── scripts/
+│   └── repo_to_context.py    ← السكريبت
+└── workflows/
+    └── generate-context.yml  ← الـ Workflow
+```
+
+**للإنشاء من الجوال:**
+1. افتح تطبيق GitHub
+2. ادخل إلى مستودعك
+3. اضغط ➕ (Add file) → Create new file
+4. اكتب المسار: `.github/workflows/generate-context.yml`
+5. الصق محتوى ملف الـ Workflow
+6. اضغط Commit
+7. كرر نفس الخطوة لملف السكريبت: `.github/scripts/repo_to_context.py`
+
+---
+
+### 2. تشغيل الـ Workflow
+
+1. من تطبيق GitHub، ادخل إلى مستودعك
+2. اذهب إلى تبويب **Actions** (الأسفل)
+3. اختر **📦 Generate Project Context**
+4. اضغط **Run workflow** (الأعلى)
+5. اترك الإعدادات الافتراضية واضغط **Run workflow** مرة أخرى
+
+---
+
+### 3. تحميل الملف
+
+1. انتظر 30 ثانية حتى تكتمل العملية (سترى ✅ أخضر)
+2. ارجع إلى تبويب **Code** (الملفات)
+3. ستجد ملفاً جديداً باسم `project_context.txt`
+4. اضغط عليه → اضغط ⬇️ (Download) أو انسخ النص
+
+---
+
+## 📋 ما يفعله السكريبت
+
+- ✅ يقرأ كل ملفات الكود في المشروع
+- ✅ يستبعد الصور والملفات الثنائية
+- ✅ ينظمها في ملف نصي واحد منسق
+- ✅ يضيف شجرة الملفات + الإحصائيات
+- ✅ يدعم اللغة العربية (UTF-8)
+
+---
+
+## ⚙️ خيارات متقدمة (اختياري)
+
+عند تشغيل الـ Workflow، يمكنك تغيير:
+- **max_size**: حجم السياق (افتراضي 800000 حرف)
+- **split**: `true` إذا كان المشروع كبيراً (ينتج عدة ملفات)
+- **format**: `txt` أو `md`
+
+---
+
+## 🔄 الاستخدام مع Gemini Flash
+
+بعد تحميل `project_context.txt`:
+1. افتح [Gemini Flash](https://gemini.google.com) في متصفح الجوال
+2. ارفع الملف
+3. ابدأ المحادثة: *"هذا مشروعي. أريدك أن تُحسّن دالة X"*
+
+---
+
+## 🛟 في حال واجهت مشكلة
+
+- **العملية تفشل؟** تأكد أن السكريبت موجود في `.github/scripts/repo_to_context.py`
+- **الملف غير موجود؟** تأكد من صلاحيات الـ Workflow (يجب أن يحتوي على `permissions: contents: write`)
+- **مشروع كبير؟** شغل الـ Workflow مع `split = true`
+
+```
+
+---
+
+### `reset-net`
+**اللغة:** Other | **الأسطر:** 347 | **الحجم:** 13,169 حرف
+
+```other
+#!/bin/bash
+# ============================================================
+# reset-net - إعادة ضبط الشبكة بعد تعطّل Outline VPN
+# مُحصَّن لمانجارو/أرش لينكس: مسارات مطلقة، معالجة أخطاء، لوغ
+# الإصدار: 1.3.0
+# الاستخدام من الطرفية:  sudo reset-net
+# الاستخدام الرسومي:     pkexec reset-net-gui
+# ============================================================
+set -uo pipefail
+
+# ── إعدادات اللوغ ──
+LOGFILE="/var/log/reset-net.log"
+ERRORS=0
+
+log() {
+    local level="$1"; shift
+    local ts; ts=$(date +"%Y-%m-%d %H:%M:%S")
+    local msg="[$ts] [$level] $*"
+    echo "$msg" >> "$LOGFILE"
+}
+
+# ── ألوان الطرفية ──
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+# ── التأكد من الصلاحيات ──
+if [[ $EUID -ne 0 ]]; then
+   echo -e "${RED}يرجى تشغيل السكربت بصلاحيات الجذر: sudo $0${NC}" >&2
+   exit 1
+fi
+
+# ── بداية السجل ──
+{
+    echo "========================================="
+    echo " reset-net v1.3.0"
+    echo " الوقت: $(date)"
+    echo " المستخدم: ${SUDO_USER:-root} (UID=${SUDO_UID:-0})"
+    echo "========================================="
+} >> "$LOGFILE"
+
+echo -e "${CYAN}${BOLD}══════════════════════════════════════════════════${NC}"
+echo -e "${CYAN}${BOLD}  reset-net v1.3.0 — إعادة ضبط الشبكة             ${NC}"
+echo -e "${CYAN}${BOLD}══════════════════════════════════════════════════${NC}"
+echo -e "  اللوغ: ${YELLOW}/var/log/reset-net.log${NC}"
+echo ""
+
+STEP=1
+
+# ── 1. إيقاف خدمات Outline ──
+echo -e "${BOLD}[${STEP}/9] إيقاف خدمات Outline${NC}"
+log INFO "1/9 - إيقاف خدمات Outline"
+if /usr/bin/systemctl stop outline 2>/dev/null; then
+    echo -e "  ${GREEN}تم إيقاف outline${NC}"; log OK "تم إيقاف outline"
+else
+    echo -e "  ${YELLOW}outline لم تكن تعمل${NC}"; log WARN "outline لم تكن تعمل"
+fi
+if /usr/bin/pkill -f outline-client 2>/dev/null; then
+    echo -e "  ${GREEN}تم قتل عمليات outline-client${NC}"; log OK "تم قتل outline-client"
+else
+    echo -e "  ${YELLOW}لا عمليات outline-client${NC}"; log WARN "لا عمليات outline-client"
+fi
+((STEP++))
+
+# ── 2. حذف واجهات TUN/TAP المتبقية ──
+echo -e "${BOLD}[${STEP}/9] حذف واجهات TUN/TAP المتبقية${NC}"
+log INFO "2/9 - حذف واجهات TUN/TAP"
+TUN_FOUND=0
+while IFS= read -r iface; do
+    [[ -z "$iface" ]] && continue
+    echo -e "  حذف: ${YELLOW}${iface}${NC}"
+    if /usr/bin/ip link del "$iface" 2>/dev/null; then
+        log OK "تم حذف $iface"
+    else
+        log WARN "فشل حذف $iface (قد لا تكون موجودة)"
+    fi
+    TUN_FOUND=1
+done < <(/usr/bin/ip link show 2>/dev/null | /usr/bin/grep -oE '(tun|tap)[^:]*' | /usr/bin/tr -d ' ')
+if [[ $TUN_FOUND -eq 0 ]]; then
+    echo -e "  لا توجد واجهات TUN/TAP"; log OK "لا واجهات TUN/TAP"
+fi
+((STEP++))
+
+# ── 3. تنظيف iptables (IPv4) ──
+echo -e "${BOLD}[${STEP}/9] تنظيف iptables (IPv4)${NC}"
+log INFO "3/9 - تنظيف iptables (IPv4)"
+if [[ -x /usr/sbin/iptables ]]; then
+    for cmd in "-F" "-X" "-t nat -F" "-t nat -X" "-t mangle -F" "-t mangle -X"; do
+        if /usr/sbin/iptables $cmd 2>/dev/null; then
+            log OK "iptables $cmd"
+        else
+            log WARN "فشل iptables $cmd"
+        fi
+    done
+    for policy in "INPUT ACCEPT" "FORWARD ACCEPT" "OUTPUT ACCEPT"; do
+        if /usr/sbin/iptables -P $policy 2>/dev/null; then
+            log OK "iptables -P $policy"
+        else
+            log WARN "فشل iptables -P $policy"
+        fi
+    done
+    echo -e "  ${GREEN}تم تنظيف iptables${NC}"
+else
+    echo -e "  ${YELLOW}iptables غير موجود${NC}"; log WARN "iptables غير موجود"
+fi
+((STEP++))
+
+# ── 4. تنظيف ip6tables (IPv6) ──
+echo -e "${BOLD}[${STEP}/9] تنظيف ip6tables (IPv6)${NC}"
+log INFO "4/9 - تنظيف ip6tables (IPv6)"
+if [[ -x /usr/sbin/ip6tables ]]; then
+    for cmd in "-F" "-X" "-t mangle -F" "-t mangle -X"; do
+        if /usr/sbin/ip6tables $cmd 2>/dev/null; then
+            log OK "ip6tables $cmd"
+        else
+            log WARN "فشل ip6tables $cmd"
+        fi
+    done
+    for policy in "INPUT ACCEPT" "FORWARD ACCEPT" "OUTPUT ACCEPT"; do
+        if /usr/sbin/ip6tables -P $policy 2>/dev/null; then
+            log OK "ip6tables -P $policy"
+        else
+            log WARN "فشل ip6tables -P $policy"
+        fi
+    done
+    echo -e "  ${GREEN}تم تنظيف ip6tables${NC}"
+else
+    echo -e "  ${YELLOW}ip6tables غير موجود${NC}"; log WARN "ip6tables غير موجود"
+fi
+((STEP++))
+
+# ── 5. مسح nftables وإعادة تشغيل firewalld ──
+echo -e "${BOLD}[${STEP}/9] مسح nftables وإعادة تشغيل firewalld${NC}"
+log INFO "5/9 - مسح nftables وإعادة تشغيل firewalld"
+if [[ -x /usr/sbin/nft ]]; then
+    if /usr/sbin/nft flush ruleset 2>/dev/null; then
+        echo -e "  ${GREEN}تم مسح nftables${NC}"; log OK "تم مسح nftables"
+    else
+        echo -e "  ${YELLOW}لا قواعد nftables أو فشل المسح${NC}"; log WARN "فشل مسح nftables"
+    fi
+fi
+if /usr/bin/systemctl is-active --quiet firewalld 2>/dev/null; then
+    if /usr/bin/timeout 10 /usr/bin/systemctl restart firewalld 2>/dev/null; then
+        echo -e "  ${GREEN}تم إعادة تشغيل firewalld${NC}"; log OK "تم إعادة تشغيل firewalld"
+    else
+        echo -e "  ${RED}فشل إعادة تشغيل firewalld${NC}"; log ERR "فشل إعادة تشغيل firewalld"; ((ERRORS++))
+    fi
+else
+    echo -e "  ${YELLOW}firewalld غير نشط${NC}"; log WARN "firewalld غير نشط"
+fi
+((STEP++))
+
+# ── 6. حذف مسارات ونقاط توجيه VPN المتبقية (كل الجداول) ──
+echo -e "${BOLD}[${STEP}/9] حذف مسارات ونقاط توجيه VPN المتبقية${NC}"
+log INFO "6/9 - حذف مسارات VPN من كل الجداول والقواعد"
+
+ROUTE_FOUND=0
+RULE_FOUND=0
+CUSTOM_TABLES=()
+
+# 6أ. حذف المسارات من الجدول الرئيسي (كما في الأصل)
+while IFS= read -r route; do
+    [[ -z "$route" ]] && continue
+    if /usr/bin/ip route del $route 2>/dev/null; then
+        echo -e "  ${GREEN}حُذف: ${route}${NC}"; log OK "حُذف المسار: $route"
+    else
+        echo -e "  ${YELLOW}فشل حذف: ${route}${NC}"; log WARN "فشل حذف المسار: $route"
+    fi
+    ROUTE_FOUND=1
+done < <(/usr/bin/ip route show 2>/dev/null | /usr/bin/grep -E 'tun|tap|outline')
+
+# 6ب. حذف قواعد policy routing غير الافتراضية (0, 32766, 32767)
+#     وجمع أسماء/أرقام الجداول التي تشير إليها لتفريغها لاحقاً
+while IFS= read -r rule_line; do
+    [[ -z "$rule_line" ]] && continue
+    prio=$(echo "$rule_line" | /usr/bin/cut -d: -f1 | /usr/bin/tr -d ' ')
+    [[ "$prio" == "0" || "$prio" == "32766" || "$prio" == "32767" ]] && continue
+
+    table=$(echo "$rule_line" | /usr/bin/grep -oE 'lookup [^ ]+' | /usr/bin/awk '{print $2}')
+    echo -e "  ${YELLOW}حذف قاعدة ip rule برقم ${prio} (جدول: ${table:-غير معروف})${NC}"
+    if /usr/bin/ip rule del prio "$prio" 2>/dev/null; then
+        log OK "تم حذف ip rule برقم $prio"
+    else
+        log WARN "فشل حذف ip rule برقم $prio"
+    fi
+    [[ -n "$table" ]] && CUSTOM_TABLES+=("$table")
+    RULE_FOUND=1
+done < <(/usr/bin/ip rule show 2>/dev/null)
+
+# 6ج. تفريغ الجداول الإضافية التي كانت مرتبطة بالقواعد المحذوفة
+for table in "${CUSTOM_TABLES[@]}"; do
+    echo -e "  ${YELLOW}تفريغ جدول توجيه: ${table}${NC}"
+    if /usr/bin/ip route flush table "$table" 2>/dev/null; then
+        log OK "تم تفريغ الجدول $table"
+    else
+        log WARN "فشل تفريغ الجدول $table (قد يكون فارغاً أصلاً)"
+    fi
+done
+
+if [[ $ROUTE_FOUND -eq 0 && $RULE_FOUND -eq 0 ]]; then
+    echo -e "  لا مسارات أو قواعد VPN متبقية"; log OK "لا مسارات/قواعد VPN"
+fi
+((STEP++))
+
+# ── 7. إصلاح DNS وإعادة تشغيل systemd-resolved ──
+echo -e "${BOLD}[${STEP}/9] إصلاح DNS وإعادة تشغيل systemd-resolved${NC}"
+log INFO "7/9 - إصلاح DNS"
+
+if [[ ! -L /etc/resolv.conf ]] || /usr/bin/grep -q 'nameserver 10\.' /etc/resolv.conf 2>/dev/null; then
+    log WARN "/etc/resolv.conf تالف أو يحتوي DNS للـ VPN، جاري الإصلاح..."
+    if /usr/bin/rm -f /etc/resolv.conf 2>/dev/null; then
+        log OK "تم حذف /etc/resolv.conf"
+    else
+        log ERR "فشل حذف /etc/resolv.conf"; ((ERRORS++))
+    fi
+    if /usr/bin/ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf 2>/dev/null; then
+        echo -e "  ${GREEN}تم إعادة إنشاء رابط resolv.conf${NC}"
+        log OK "تم إنشاء symlink إلى stub-resolv.conf"
+    else
+        echo -e "  ${YELLOW}فشل إنشاء symlink — جرب يدوياً: sudo ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf${NC}"
+        log ERR "فشل إنشاء symlink لـ /etc/resolv.conf"; ((ERRORS++))
+    fi
+else
+    echo -e "  ${GREEN}resolv.conf سليم${NC}"; log OK "/etc/resolv.conf سليم"
+fi
+
+if /usr/bin/timeout 5 /usr/bin/systemctl is-active --quiet systemd-resolved 2>/dev/null; then
+    echo -e "  جاري إعادة تشغيل systemd-resolved (مهلة 10 ثوانٍ)..."
+    if /usr/bin/timeout 10 /usr/bin/systemctl restart systemd-resolved 2>/dev/null; then
+        echo -e "  ${GREEN}تم إعادة تشغيل systemd-resolved${NC}"
+        log OK "تم إعادة تشغيل systemd-resolved"
+    else
+        echo -e "  ${YELLOW}تعليق أو فشل systemd-resolved — سيُعاد المحاولة في الخطوة 8${NC}"
+        log ERR "فشل/تعليق systemd-resolved"; ((ERRORS++))
+    fi
+else
+    echo -e "  ${YELLOW}systemd-resolved غير نشط${NC}"
+    log WARN "systemd-resolved غير نشط"
+fi
+((STEP++))
+
+# ── 8. إعادة تفعيل الشبكة عبر NetworkManager ──
+echo -e "${BOLD}[${STEP}/9] إعادة تفعيل الشبكة عبر NetworkManager${NC}"
+log INFO "8/9 - إعادة تفعيل الشبكة"
+if /usr/bin/systemctl is-active --quiet NetworkManager 2>/dev/null; then
+    if /usr/bin/nmcli networking off 2>/dev/null; then
+        echo -e "  ${GREEN}تم إيقاف الشبكة${NC}"; log OK "تم إيقاف الشبكة (nmcli)"
+    else
+        log WARN "فشل إيقاف الشبكة عبر nmcli"
+    fi
+    /usr/bin/sleep 1
+    if /usr/bin/nmcli networking on 2>/dev/null; then
+        echo -e "  ${GREEN}تم تشغيل الشبكة${NC}"; log OK "تم تشغيل الشبكة (nmcli)"
+    else
+        echo -e "  ${RED}فشل تشغيل الشبكة${NC}"; log ERR "فشل تشغيل الشبكة"; ((ERRORS++))
+    fi
+    ACTIVE_CON=$(/usr/bin/nmcli -t -f NAME c show --active 2>/dev/null | /usr/bin/head -1)
+    if [[ -n "$ACTIVE_CON" ]]; then
+        if /usr/bin/nmcli con up "$ACTIVE_CON" 2>/dev/null; then
+            echo -e "  ${GREEN}تم تفعيل: ${ACTIVE_CON}${NC}"; log OK "تم تفعيل $ACTIVE_CON"
+        else
+            echo -e "  ${YELLOW}فشل تفعيل ${ACTIVE_CON}${NC}"; log WARN "فشل تفعيل $ACTIVE_CON"
+        fi
+    else
+        echo -e "  ${YELLOW}لا يوجد اتصال نشط بعد التشغيل${NC}"; log WARN "لا اتصال نشط"
+    fi
+else
+    echo -e "  ${YELLOW}NetworkManager غير نشط، جاري محاولة systemd-networkd...${NC}"
+    log WARN "NetworkManager غير نشط"
+    if /usr/bin/timeout 10 /usr/bin/systemctl restart systemd-networkd 2>/dev/null; then
+        echo -e "  ${GREEN}تم إعادة تشغيل systemd-networkd${NC}"; log OK "تم إعادة تشغيل systemd-networkd"
+    else
+        echo -e "  ${RED}فشل إعادة تشغيل systemd-networkd${NC}"; log ERR "فشل systemd-networkd"; ((ERRORS++))
+    fi
+fi
+
+# محاولة إعادة تشغيل systemd-resolved مرة أخرى إذا فشلت في الخطوة 7
+if /usr/bin/timeout 5 /usr/bin/systemctl is-active --quiet systemd-resolved 2>/dev/null; then
+    /usr/bin/timeout 10 /usr/bin/systemctl restart systemd-resolved 2>/dev/null && log OK "إعادة محاولة: تم إعادة تشغيل systemd-resolved" || log WARN "إعادة محاولة: فشل/تعليق systemd-resolved"
+fi
+((STEP++))
+
+# ── 9. التحقق من الاتصال ──
+echo -e "${BOLD}[${STEP}/9] التحقق من الاتصال${NC}"
+log INFO "9/9 - التحقق من الاتصال"
+echo -e "  انتظار استقرار الشبكة..."
+/usr/bin/sleep 3
+
+PING_OK=0
+DNS_OK=0
+
+if /usr/bin/ping -c 2 8.8.8.8 &>/dev/null; then
+    echo -e "  ${GREEN}الإنترنت يعمل (Ping 8.8.8.8)${NC}"; log OK "Ping 8.8.8.8 ناجح"
+    PING_OK=1
+else
+    echo -e "  ${RED}فشل الاتصال بـ 8.8.8.8${NC}"; log ERR "فشل Ping 8.8.8.8"
+fi
+
+if /usr/bin/ping -c 1 google.com &>/dev/null; then
+    echo -e "  ${GREEN}DNS يعمل (google.com)${NC}"; log OK "DNS يعمل (google.com)"
+    DNS_OK=1
+else
+    echo -e "  ${YELLOW}DNS لا يحل الأسماء — جرب: sudo systemctl restart systemd-resolved${NC}"
+    log WARN "فشل DNS (google.com)"
+fi
+
+# ── تحذير حول nftables.conf ──
+if [[ -f /etc/nftables.conf ]] && /usr/bin/grep -qi 'outline' /etc/nftables.conf 2>/dev/null; then
+    echo ""
+    echo -e "  ${YELLOW}تحذير: تم العثور على إشارة لـ Outline في /etc/nftables.conf${NC}"
+    echo -e "  ${YELLOW}يُنصح بمراجعة الملف أو استبداله بالإعدادات المبدئية${NC}"
+    log WARN "nftables.conf يحتوي آثار Outline"
+fi
+
+echo ""
+echo -e "${CYAN}${BOLD}══════════════════════════════════════════════════${NC}"
+if [[ $PING_OK -eq 1 ]] && [[ $DNS_OK -eq 1 ]]; then
+    echo -e "${GREEN}${BOLD}  الشبكة جاهزة بالكامل!${NC}"
+    log OK "النتيجة: الشبكة جاهزة بالكامل"
+elif [[ $PING_OK -eq 1 ]]; then
+    echo -e "${YELLOW}${BOLD}  الاتصال يعمل لكن DNS يحتاج مراجعة${NC}"
+    log WARN "النتيجة: اتصال يعمل لكن DNS معطل"
+else
+    echo -e "${RED}${BOLD}  فشل الاتصال — راجع بالترتيب:${NC}"
+    echo -e "${RED}    1) ip addr show   (هل للواجهة IP؟)${NC}"
+    echo -e "${RED}    2) ip route show  (هل يوجد default route؟)${NC}"
+    echo -e "${RED}    3) ip rule show   (هل بقيت قواعد policy routing؟)${NC}"
+    echo -e "${RED}    4) nmcli device status${NC}"
+    log ERR "النتيجة: فشل الاتصال بالإنترنت"
+fi
+echo -e "${CYAN}${BOLD}══════════════════════════════════════════════════${NC}"
+
+# ── ختام السجل ──
+{
+    echo "========================================="
+    echo " انتهى reset-net"
+    echo " أخطاء: $ERRORS"
+    echo " الوقت: $(date)"
+    echo "========================================="
+} >> "$LOGFILE"
+
+if [[ $ERRORS -gt 0 ]]; then
+    echo -e "\n  ${YELLOW}تنبيه: $ERRORS خطأ/أخطاء غير حرجة — راجع: /var/log/reset-net.log${NC}\n"
+fi
+```
+
+---
+
+### `PKGBUILD`
+**اللغة:** Other | **الأسطر:** 60 | **الحجم:** 2,526 حرف
+
+```other
+# Maintainer: Dr. Abdulmalek Al-Husseini <ضع بريدك هنا>
+pkgname=reset-net
+pkgver=1.3.0
+pkgrel=1
+pkgdesc="Enterprise-grade network reset tool for Manjaro/Arch Linux — fixes internet after Outline VPN disconnect (iptables, DNS, routes, TUN, system tray icon)"
+arch=('any')
+url="https://github.com/DrAbdulmalek/reset-net"
+license=('MIT')
+depends=('iproute2' 'networkmanager' 'systemd' 'polkit')
+optdepends=(
+    'iptables-nft: تنظيف قواعد IPv4/IPv6'
+    'nftables: مسح nftables'
+    'firewalld: إعادة تشغيل جدار الحماية'
+    'yad: أيقونة علبة النظام reset-net-tray'
+    'libnotify: إشعارات سطح المكتب من الأيقونة'
+)
+makedepends=('git')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/DrAbdulmalek/reset-net/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')  # ضع الـ hash الحقيقي بعد إصدار التاغ عبر: makepkg -g
+
+# الحزمة الأصلية مصمَّمة للتثبيت اليدوي في /usr/local/bin، بينما حزم
+# Arch/AUR يجب أن تثبَّت في /usr/bin. هذه الدالة تُعدّل المسارات تلقائياً
+# داخل السكربتات وملفات .desktop/.policy قبل التغليف.
+prepare() {
+    cd "$srcdir/$pkgname-$pkgver"
+    sed -i 's#/usr/local/bin/#/usr/bin/#g' \
+        reset-net-gui \
+        reset-net-tray \
+        reset-net-tray.desktop \
+        com.drabdulmalek.reset-net.desktop
+}
+
+package() {
+    cd "$srcdir/$pkgname-$pkgver"
+
+    install -Dm755 reset-net      "$pkgdir/usr/bin/reset-net"
+    install -Dm755 reset-net-gui  "$pkgdir/usr/bin/reset-net-gui"
+    if [[ -f reset-net-tray ]]; then
+        install -Dm755 reset-net-tray "$pkgdir/usr/bin/reset-net-tray"
+        install -Dm644 reset-net-tray.desktop \
+            "$pkgdir/etc/xdg/autostart/reset-net-tray.desktop"
+    fi
+
+    install -Dm644 com.drabdulmalek.reset-net.desktop \
+        "$pkgdir/usr/share/applications/com.drabdulmalek.reset-net.desktop"
+    install -Dm644 com.drabdulmalek.reset-net.policy \
+        "$pkgdir/usr/share/polkit-1/actions/com.drabdulmalek.reset-net.policy"
+
+    install -Dm644 LICENSE   "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}
+
+# ملاحظة: لا يُنشئ هذا الـPKGBUILD قاعدة sudoers تلقائياً (NOPASSWD)
+# لأن حزم AUR لا يجب أن تُعدّل /etc/sudoers.d دون علم صريح من المستخدم —
+# هذا قد يُرفض في مراجعة AUR. الاستخدام عبر GUI/tray يعمل بدون ذلك أصلاً
+# لأنه يعتمد على Polkit (pkexec) لا على sudoers.
+# من يريد تشغيل "reset-net" من الطرفية بدون كلمة مرور، ينفّذ يدوياً:
+#   echo "$USER ALL=(root) NOPASSWD: /usr/bin/reset-net" | sudo tee /etc/sudoers.d/reset-net
+#   sudo chmod 440 /etc/sudoers.d/reset-net
+
+```
+
+---
+
+### `reset-net-tray.desktop`
+**اللغة:** Other | **الأسطر:** 14 | **الحجم:** 384 حرف
+
+```other
+[Desktop Entry]
+Type=Application
+Name=Reset Network Tray
+Name[ar]=أيقونة إعادة ضبط الشبكة
+Comment=System tray icon for one-click reset-net execution
+Comment[ar]=أيقونة في علبة النظام لتشغيل reset-net بنقرة واحدة
+Exec=/usr/local/bin/reset-net-tray
+Icon=network-wired
+Terminal=false
+Categories=System;Network;
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+OnlyShowIn=X-KDE;GNOME;XFCE;
+
+```
+
+---
+
+### `GEMINI_SYSTEM_PROMPT.md`
+**اللغة:** Markdown | **الأسطر:** 173 | **الحجم:** 4,441 حرف
+
+```markdown
+# 🎭 Generic System Prompt — Gemini Flash
+## مطور Python متخصص (Generic — قابل للتخصيص)
+
+---
+
+## 1. هويتك (Persona)
+
+أنت **مطور Python متمرس** متخصص في:
+- بناء أنظمة برمجية موثوقة وقابلة للصيانة
+- اتباع أفضل الممارسات (PEP 8, type hints, docstrings)
+- معالجة الأخطاء والـ edge cases
+- كتابة اختبارات شاملة
+
+خبرتك في بيئات الإنتاج:
+- الكود يُقرأ أكثر مما يُكتب — الوضوح أهم من الذكاء
+- الـ edge cases تحدث في الإنتاج دائماً
+- الاختبارات ليست رفاهية — هي ضمانة
+
+---
+
+## 2. سياق المشروع (Project Context)
+
+المشروع: **عام** — استخرج التفاصيل من `project_context.txt` المرفق.
+
+### التقنيات الافتراضية:
+- **Python 3.11+**
+- **Type Hints** إلزامية
+- **pytest** للاختبارات
+- **ruff** للـ linting
+- **mypy** للـ type checking
+
+> ⚠️ اقرأ السياق المرفق لتحديد التقنيات الفعلية (FastAPI? Django? CLI? etc.)
+
+---
+
+## 3. قيود صارمة (Hard Constraints)
+
+### أ. برمجية:
+- ✅ **Python 3.11+** — Type Hints، f-strings، match-case.
+- ✅ **PEP 8** — استخدم ruff للتطبيق التلقائي.
+- ✅ **Docstrings** — لكل دالة/كلاس عامة.
+- ✅ **Error handling** — `try/except` صريح مع رسائل واضحة.
+- ✅ **No magic numbers** — استخدم constants مسماة.
+
+### ب. هندسية:
+- ✅ **Single Responsibility** — كل دالة/كلاس يفعل شيئاً واحداً.
+- ✅ **DRY** — لا تكرّر الكود، استخرج المشترك.
+- ✅ **KISS** — الحل البسيط أفضل من المعقّد.
+- ❌ **ممنوع** `import *` — استخدم imports صريحة.
+- ❌ **ممنوع** `eval()` أو `exec()` إلا في حالات نادرة جداً مع تعليق مبرّر.
+
+### ج. اختبارية:
+- ✅ كل دالة عامة تحتاج unit test.
+- ✅غطِ edge cases (null, empty, boundary values).
+- ✅ استخدم `pytest` + `pytest-cov` (التغطية ≥ 80%).
+
+---
+
+## 4. مصطلحات هندسية معتمدة
+
+- `SRP` — Single Responsibility Principle
+- `DRY` — Don't Repeat Yourself
+- `KISS` — Keep It Simple, Stupid
+- `YAGNI` — You Aren't Gonna Need It
+- `TDD` — Test-Driven Development
+- `refactor` — إعادة هيكلة بدون تغيير السلوك
+- `technical debt` — دين تقني
+- `code smell` — رائحة كود (إشارة لمشكلة محتملة)
+- `edge case` — حالة حدية
+- `happy path` — المسار السعيد (الاستخدام النموذجي)
+
+---
+
+## 5. صيغة المخرجات المطلوبة (Output Format)
+
+```markdown
+### 📌 الملف: `path/to/file.py`
+
+**التغييرات:**
+1. ...
+2. ...
+
+**الكود المُحدَّث:**
+```python
+"""وصف مختصر للوحدة."""
+from __future__ import annotations
+from typing import Final
+
+# تعليق يشرح الـ constant
+EXAMPLE_CONSTANT: Final[str] = "value"
+
+def example_function(param: str) -> bool:
+    """
+    وصف الوظيفة.
+
+    Args:
+        param: وصف المعامل
+
+    Returns:
+        وصف النتيجة
+
+    Raises:
+        ValueError: إذا كان param فارغاً
+    """
+    try:
+        if not param:
+            raise ValueError("المعامل لا يمكن أن يكون فارغاً")
+        # المنطق
+        return True
+    except Exception as e:
+        raise RuntimeError(f"خطأ: {e}") from e
+```
+
+**ملاحظات المراجعة:**
+- نقطة 1
+```
+
+### قواعد:
+- 📝 تعليقات عربية، أسماء متغيرات إنجليزية.
+- 📝 Docstrings عربية مع Type Hints.
+- 📝 رسائل أخطاء عربية واضحة.
+
+---
+
+## 6. أمثلة على الطلبات (Request Examples)
+
+### ✅ طلب جيد:
+> "أعد كتابة دالة `process_data` في `src/core/processor.py` لتحسين الأداء. استخدم list comprehension بدلاً من حلقة for مع append. احتفظ بنفس الـ Signature. أضف اختبار في `tests/test_processor.py` يغطي: قائمة فارغة، قائمة بعنصر واحد، قائمة كبيرة (1000 عنصر)."
+
+### ❌ طلب سيء:
+> "حسّن الكود" (غامض — أي دالة؟ ما المقياس؟)
+
+### ✅ طلب جيد:
+> "أضف type hints إلى `src/utils/helpers.py`. استخدم `from __future__ import annotations` للسماح بـ PEP 604 syntax (`X | Y`). أضف mypy config في `pyproject.toml` مع `strict = true`."
+
+### ❌ طلب سيء:
+> "أضف types" (غامض — أي ملف؟ أي مستوى صرامة؟)
+
+---
+
+## 7. سياق المشروع المرفق (Attached Context)
+
+📎 **ملف `project_context.txt` المرفق** يحتوي على:
+- شجرة ملفات المشروع بالكامل
+- محتوى كل ملف
+- الإحصائيات والاعتماديات
+
+**كيفية الاستخدام:**
+- ابحث عن الملف المطلوب قبل الكتابة.
+- لا تختلق أسماء ملفات/دوال غير موجودة.
+- إذا لم تجد الملف، اسأل: "هذا الملف غير موجود في السياق — هل تقصد X؟"
+
+---
+
+## 8. قواعد التفاعل (Interaction Rules)
+
+1. **اسأل قبل أن تكتب** — Clarifying Questions عند الغموض.
+2. **اشرح النهج أولاً** — Approach قبل Implementation.
+3. **لا تحذف** — احترم الدوال/الكلاسات الموجودة.
+4. **اختبر** — كل دالة جديدة تحتاج unit test.
+5. **توافق البنية** — احترم بنية المشروع الموجودة.
+6. **لا تكسر الـ imports** — تحقق قبل الـ commit.
+
+---
+
+## 9. التذكير النهائي (Final Reminder)
+
+> **"الكود الجيد يُقرأ في 5 ثوانٍ ويُفهم. الكود السيء يأخذ ساعات. اكتب الكود كأن من سيقرؤه بعدك مريض نفسي يعرف مكان سكنك."**
+
+---
+
+**جاهز للعمل. ابدأ بقراءة `project_context.txt` المرفق، ثم انتظر طلبي.**
+
+```
+
+---
+
+### `com.drabdulmalek.reset-net.desktop`
+**اللغة:** Other | **الأسطر:** 14 | **الحجم:** 452 حرف
+
+```other
+[Desktop Entry]
+Type=Application
+Name=Reset Network
+Name[ar]=إعادة ضبط الشبكة
+Comment=Fix network after Outline VPN disconnect on Manjaro Linux
+Comment[ar]=إصلاح الشبكة بعد انتهاء صلاحية Outline VPN على مانجارو
+Exec=pkexec /usr/local/bin/reset-net-gui
+Icon=network-wired
+Terminal=false
+Categories=System;Network;
+Keywords=network;reset;vpn;outline;dns;iptables
+Keywords[ar]=شبكة;إعادة ضبط;إنترنت;دي إن إس
+StartupNotify=true
+OnlyShowIn=X-KDE;GNOME;XFCE;
+```
+
+---
+
+### `com.drabdulmalek.reset-net.policy`
+**اللغة:** Other | **الأسطر:** 21 | **الحجم:** 908 حرف
+
+```other
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+  "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+  "http://www.freedesktop.org/standards/PolicyKit/1.0/policyconfig.dtd">
+<policyconfig>
+
+  <action id="com.drabdulmalek.reset-net">
+    <description>Reset network after Outline VPN</description>
+    <description xml:lang="ar">إعادة ضبط الشبكة بعد انتهاء صلاحية Outline VPN</description>
+    <message>Authentication is required to reset the network configuration</message>
+    <message xml:lang="ar">يجب المصادقة لإعادة ضبط إعدادات الشبكة</message>
+    <icon_name>network-wired</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_any>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/bin/reset-net</annotate>
+  </action>
+
+</policyconfig>
+```
+
+---
+
+### `reset-net-tray`
+**اللغة:** Other | **الأسطر:** 55 | **الحجم:** 1,969 حرف
+
+```other
+#!/bin/bash
+# ============================================================
+# reset-net-tray — أيقونة في علبة النظام (System Tray) لتشغيل
+# reset-net بنقرة واحدة، دون الحاجة للطرفية أو تذكّر الأمر.
+#
+# - نقرة مزدوجة (يسار) أو نقرة وسطى: تشغيل مباشر عبر pkexec
+# - نقرة يمين: قائمة (تشغيل / فتح اللوغ / خروج)
+# - يعتمد على yad (حزمة صغيرة متوفرة في مستودعات مانجارو/AUR)
+# ============================================================
+set -uo pipefail
+
+RESET_BIN="/usr/local/bin/reset-net"
+[[ -x "$RESET_BIN" ]] || RESET_BIN="/usr/bin/reset-net"
+
+ICON="network-wired"                 # نفس أيقونة .desktop الأصلية (متوفرة في كل ثيمات الأيقونات)
+LOG_FILE="/var/log/reset-net.log"
+
+if ! /usr/bin/command -v yad &>/dev/null; then
+    /usr/bin/notify-send -u critical "reset-net-tray" \
+        "الحزمة yad غير مثبتة. ثبّتها عبر: sudo pacman -S yad" 2>/dev/null || \
+        echo "yad غير مثبت — نفّذ: sudo pacman -S yad" >&2
+    exit 1
+fi
+
+run_reset() {
+    /usr/bin/pkexec "$RESET_BIN" > /tmp/reset-net-tray.out 2>&1
+    RC=$?
+    if [[ $RC -eq 0 ]]; then
+        /usr/bin/notify-send -i "$ICON" "reset-net" "تمت إعادة ضبط الشبكة بنجاح ✅" 2>/dev/null
+    else
+        /usr/bin/notify-send -u critical -i "$ICON" "reset-net" \
+            "فشلت إعادة الضبط — راجع: $LOG_FILE" 2>/dev/null
+    fi
+}
+export -f run_reset
+
+show_log() {
+    if [[ -r "$LOG_FILE" ]]; then
+        /usr/bin/tail -n 60 "$LOG_FILE" | \
+            yad --text-info --title="reset-net — آخر سجل" \
+                --width=600 --height=450 --font="monospace 9"
+    else
+        /usr/bin/notify-send "reset-net" "لا يوجد ملف سجل بعد" 2>/dev/null
+    fi
+}
+export -f show_log
+
+# تشغيل الأيقونة في علبة النظام
+yad --notification \
+    --image="$ICON" \
+    --text="reset-net — انقر مرتين لإعادة ضبط الشبكة" \
+    --command="bash -c run_reset" \
+    --menu="إعادة ضبط الشبكة الآن!bash -c run_reset!$ICON|عرض آخر سجل!bash -c show_log!text-x-generic|خروج!bash -c 'kill $PPID'!application-exit" \
+    --no-middle
+
+```
+
+---
+
+### `install.sh`
+**اللغة:** Shell | **الأسطر:** 118 | **الحجم:** 4,490 حرف
+
+```shell
+#!/bin/bash
+# ============================================================
+# install.sh — مُثبّت reset-net
+# ينسخ السكربتات، يضبط الصلاحيات، ينشئ sudoers، يثبّت القائمة
+# وأيقونة علبة النظام، الاستخدام: sudo bash install.sh
+# ============================================================
+set -eu
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+echo -e "${CYAN}${BOLD}"
+echo "══════════════════════════════════════════════════"
+echo "  reset-net v1.3.0 — المُثبّت"
+echo "══════════════════════════════════════════════════"
+echo -e "${NC}"
+
+# ── فحص الصلاحيات ──
+if [[ $EUID -ne 0 ]]; then
+    echo -e "${RED}يجب تشغيل المُثبّت بصلاحيات الجذر:${NC} sudo bash $0"
+    exit 1
+fi
+
+CURRENT_USER="${SUDO_USER:-$USER}"
+echo -e "المستخدم: ${BOLD}${CURRENT_USER}${NC}"
+echo ""
+
+# ── 1. نسخ السكربت الرئيسي ──
+echo -e "${BOLD}[1/7] تثبيت السكربت الرئيسي...${NC}"
+cp "${SCRIPT_DIR}/reset-net" /usr/local/bin/reset-net
+chown root:root /usr/local/bin/reset-net
+chmod 755 /usr/local/bin/reset-net
+echo -e "  ${GREEN}/usr/local/bin/reset-net${NC}"
+
+# ── 2. نسخ واجهة GUI ──
+echo -e "${BOLD}[2/7] تثبيت واجهة GUI...${NC}"
+cp "${SCRIPT_DIR}/reset-net-gui" /usr/local/bin/reset-net-gui
+chown root:root /usr/local/bin/reset-net-gui
+chmod 755 /usr/local/bin/reset-net-gui
+echo -e "  ${GREEN}/usr/local/bin/reset-net-gui${NC}"
+
+# ── 3. تثبيت ملف .desktop ──
+echo -e "${BOLD}[3/7] تثبيت ملف القائمة...${NC}"
+cp "${SCRIPT_DIR}/com.drabdulmalek.reset-net.desktop" /usr/share/applications/
+chmod 644 /usr/share/applications/com.drabdulmalek.reset-net.desktop
+update-desktop-database /usr/share/applications/ 2>/dev/null || true
+echo -e "  ${GREEN}أُضيف إلى قائمة التطبيقات${NC}"
+
+# ── 4. تثبيت سياسة Polkit ──
+echo -e "${BOLD}[4/7] تثبيت سياسة Polkit...${NC}"
+cp "${SCRIPT_DIR}/com.drabdulmalek.reset-net.policy" /usr/share/polkit-1/actions/
+chmod 644 /usr/share/polkit-1/actions/com.drabdulmalek.reset-net.policy
+echo -e "  ${GREEN}تم تثبيت سياسة المصادقة${NC}"
+
+# ── 5. إعداد sudoers (NOPASSWD) ──
+echo -e "${BOLD}[5/7] إعداد sudoers...${NC}"
+SUDOERS_FILE="/etc/sudoers.d/reset-net"
+if [[ ! -f "$SUDOERS_FILE" ]] || ! grep -q "reset-net" "$SUDOERS_FILE" 2>/dev/null; then
+    echo "${CURRENT_USER} ALL=(root) NOPASSWD: /usr/local/bin/reset-net" > "$SUDOERS_FILE"
+    chmod 440 "$SUDOERS_FILE"
+    echo -e "  ${GREEN}تم إنشاء ${SUDOERS_FILE}${NC}"
+else
+    echo -e "  ${YELLOW}sudoers مُعد مسبقاً${NC}"
+fi
+
+# ── 6. تثبيت أيقونة علبة النظام + التشغيل التلقائي ──
+echo -e "${BOLD}[6/7] تثبيت أيقونة علبة النظام...${NC}"
+if [[ -f "${SCRIPT_DIR}/reset-net-tray" ]]; then
+    cp "${SCRIPT_DIR}/reset-net-tray" /usr/local/bin/reset-net-tray
+    chown root:root /usr/local/bin/reset-net-tray
+    chmod 755 /usr/local/bin/reset-net-tray
+    echo -e "  ${GREEN}/usr/local/bin/reset-net-tray${NC}"
+
+    mkdir -p /etc/xdg/autostart
+    cp "${SCRIPT_DIR}/reset-net-tray.desktop" /etc/xdg/autostart/reset-net-tray.desktop
+    chmod 644 /etc/xdg/autostart/reset-net-tray.desktop
+    echo -e "  ${GREEN}سيبدأ تلقائياً عند تسجيل الدخول (لكل المستخدمين)${NC}"
+
+    if ! /usr/bin/command -v yad &>/dev/null; then
+        echo -e "  ${YELLOW}تنبيه: الحزمة yad غير مثبتة — الأيقونة لن تعمل حتى تُثبّتها:${NC}"
+        echo -e "  ${YELLOW}sudo pacman -S yad${NC}"
+    fi
+else
+    echo -e "  ${YELLOW}تخطّي: reset-net-tray غير موجود في المستودع${NC}"
+fi
+
+# ── 7. إعادة تحديث قاعدة بيانات التطبيقات ──
+echo -e "${BOLD}[7/7] تحديث النظام...${NC}"
+if [[ -x /usr/bin/kbuildsycoca6 ]]; then
+    su - "${CURRENT_USER}" -c "/usr/bin/kbuildsycoca6" 2>/dev/null || true
+fi
+systemctl daemon-reload 2>/dev/null || true
+
+echo ""
+echo -e "${CYAN}${BOLD}══════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}${BOLD}  تم التثبيت بنجاح!${NC}"
+echo -e "${CYAN}${BOLD}══════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "${BOLD}طرق الاستخدام:${NC}"
+echo ""
+echo -e "  ${CYAN}1. من الطرفية:${NC}"
+echo -e "     ${GREEN}reset-net${NC}"
+echo ""
+echo -e "  ${CYAN}2. من قائمة التطبيقات (الرسومية):${NC}"
+echo -e "     ابحث عن ${GREEN}\"Reset Network\"${NC} أو ${GREEN}\"إعادة ضبط الشبكة\"${NC}"
+echo ""
+echo -e "  ${CYAN}3. أيقونة علبة النظام (الأسهل):${NC}"
+echo -e "     ستظهر تلقائياً بعد إعادة تسجيل الدخول — انقر مرتين لإعادة الضبط"
+echo -e "     أو شغّلها الآن يدوياً: ${GREEN}reset-net-tray &${NC}"
+echo ""
+echo -e "${YELLOW}ملاحظة: التثبيت الرسومي يطلب كلمة مرور مرة واحدة فقط عبر Polkit.${NC}"
+
+```
+
+---
+
+### `reset-net-gui`
+**اللغة:** Other | **الأسطر:** 47 | **الحجم:** 1,708 حرف
+
+```other
+#!/bin/bash
+# ============================================================
+# reset-net-gui — واجهة رسومية لـ reset-net
+# يُستدعى عبر pkexec من ملف .desktop
+# يُظهر نافذة طرفية مؤقتة مع مخرجات ملونة
+# ============================================================
+
+# اختيار المحاكي الطرفي المتاح
+TERMINAL=""
+if [[ -x /usr/bin/konsole ]]; then
+    TERMINAL="/usr/bin/konsole"
+elif [[ -x /usr/bin/gnome-terminal ]]; then
+    TERMINAL="/usr/bin/gnome-terminal"
+elif [[ -x /usr/bin/xfce4-terminal ]]; then
+    TERMINAL="/usr/bin/xfce4-terminal"
+elif [[ -x /usr/bin/alacritty ]]; then
+    TERMINAL="/usr/bin/alacritty"
+elif [[ -x /usr/bin/kitty ]]; then
+    TERMINAL="/usr/bin/kitty"
+else
+    # لا يوجد محاكي — نستخدم zenity/kdialog لعرض النتيجة
+    OUTPUT=$(/usr/local/bin/reset-net 2>&1)
+    if command -v zenity &>/dev/null; then
+        echo "$OUTPUT" | zenity --text-info --title="reset-net" --width=500 --height=400 --font="monospace"
+    elif command -v kdialog &>/dev/null; then
+        kdialog --textbox /dev/stdin 500 400 <<< "$OUTPUT"
+    else
+        xterm -e "/usr/local/bin/reset-net; echo ''; echo 'اضغط Enter للإغلاق'; read"
+    fi
+    exit 0
+fi
+
+# تشغيل reset-net في الطرفية المختارة مع إغلاق تلقائي
+case "$TERMINAL" in
+    */konsole)
+        $TERMINAL --noclose -e /usr/local/bin/reset-net
+        ;;
+    */gnome-terminal)
+        $TERMINAL -- bash -c "/usr/local/bin/reset-net; echo ''; echo 'اضغط Enter للإغلاق'; read"
+        ;;
+    */xfce4-terminal)
+        $TERMINAL -e "bash -c '/usr/local/bin/reset-net; echo; echo اضغط Enter للإغلاق; read'"
+        ;;
+    */alacritty|*/kitty)
+        $TERMINAL -e bash -c "/usr/local/bin/reset-net; echo ''; echo 'اضغط Enter للإغلاق'; read"
+        ;;
+esac
+```
+
+---
+
+### `.gitignore`
+**اللغة:** Other | **الأسطر:** 37 | **الحجم:** 274 حرف
+
+```other
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.spec
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.venv/
+venv/
+
+# Logs
+*.log
+
+# Python virtual env
+.python-version
+
+# Arch package build
+src/
+pkg/
+*.pkg.tar.*
+makepkg.log
+```
+
+---
