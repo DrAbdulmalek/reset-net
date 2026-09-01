@@ -3,7 +3,7 @@
 > أداة نظامية احترافية لإعادة ضبط الشبكة بعد تعطّل Outline VPN على مانجارو/أرش لينكس — مع أيقونة علبة النظام وتثبيت AUR
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-1.3.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/Version-1.4.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/AUR-reset--net-1793D1" alt="AUR">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/Platform-Manjaro%20%7C%20Arch%20Linux-orange" alt="Platform">
@@ -231,6 +231,7 @@ sudo bash uninstall.sh
 
 | الإصدار | التغييرات |
 |---------|-----------|
+| **v1.4.0** | إصلاح حرج: اعكس ترتيب الخطوات (NM قبل ip rules)، VPN whitelist، كشف واجهات محمول (ip -o)، grep -oE بدل -oP، kill-9 لـ systemd-resolved، فحص نهائي لـ ip rules |
 | **v1.3.0** | أيقونة علبة النظام (`reset-net-tray` + yad) + حزمة AUR (`PKGBUILD`) + تشغيل تلقائي |
 | **v1.2.1** | تحسين parse لرقم `ip rule` priority (تنظيف المسافات البادئة) |
 | **v1.2.0** | إصلاح جذري: تنظيف `ip rule` وجداول التوجيه الإضافية (kill-switch remnants) + تصحيح رسالة التشخيص |
