@@ -11,7 +11,7 @@ jobs:
     name: ShellCheck Analysis
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install ShellCheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
@@ -36,7 +36,7 @@ jobs:
     name: Bash Syntax Validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Validate reset-net syntax
         run: bash -n reset-net
@@ -54,7 +54,7 @@ jobs:
     name: File Structure & Permissions
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check required files exist
         run: |
