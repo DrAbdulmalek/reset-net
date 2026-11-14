@@ -1,6 +1,6 @@
 # Maintainer: Dr. Abdulmalek Al-Husseini <ضع بريدك هنا>
 pkgname=reset-net
-pkgver=1.3.0
+pkgver=1.4.0
 pkgrel=1
 pkgdesc="Enterprise-grade network reset tool for Manjaro/Arch Linux — fixes internet after Outline VPN disconnect (iptables, DNS, routes, TUN, system tray icon)"
 arch=('any')
